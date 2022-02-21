@@ -330,19 +330,44 @@ class BarColumn(ProgressColumn):
         )
 
 
-class TimeElapsedColumn(ProgressColumn):
+class TimeColumn(ProgressColumn):
+    def __init__(
+        self,
+        *,
+        short: bool = False,
+        table_column: Optional[Column] = None,
+    ) -> None:
+        super().__init__(table_column=table_column)
+        self.short = short
+
+    # Based on tqdm.format_interval
+    # https://github.com/tqdm/tqdm/blob/master/tqdm/std.py
+    def _format_time(self, value: Optional[float], *, style: str) -> Text:
+        if value is None:
+            return Text("--:--" if self.short else "-:--:--", style=style)
+
+        mins, s = divmod(int(value), 60)
+        h, m = divmod(mins, 60)
+        if not self.short:
+            formatted = "{0:d}:{1:02d}:{2:02d}".format(h, m, s)
+        else:
+            formatted = "{0:02d}:{1:02d}".format(m, s)
+
+        return Text(formatted, style=style)
+
+
+class TimeElapsedColumn(TimeColumn):
     """Renders time elapsed."""
 
     def render(self, task: "Task") -> Text:
         """Show time remaining."""
-        elapsed = task.finished_time if task.finished else task.elapsed
-        if elapsed is None:
-            return Text("-:--:--", style="progress.elapsed")
-        delta = timedelta(seconds=int(elapsed))
-        return Text(str(delta), style="progress.elapsed")
+        return self._format_time(
+            task.finished_time if task.finished else task.elapsed,
+            style="progress.elapsed",
+        )
 
 
-class TimeRemainingColumn(ProgressColumn):
+class TimeRemainingColumn(TimeColumn):
     """Renders estimated time remaining."""
 
     # Only refresh twice a second to prevent jitter
@@ -350,11 +375,10 @@ class TimeRemainingColumn(ProgressColumn):
 
     def render(self, task: "Task") -> Text:
         """Show time remaining."""
-        remaining = task.time_remaining
-        if remaining is None:
-            return Text("-:--:--", style="progress.remaining")
-        remaining_delta = timedelta(seconds=int(remaining))
-        return Text(str(remaining_delta), style="progress.remaining")
+        return self._format_time(
+            task.time_remaining,
+            style="progress.remaining",
+        )
 
 
 class FileSizeColumn(ProgressColumn):
